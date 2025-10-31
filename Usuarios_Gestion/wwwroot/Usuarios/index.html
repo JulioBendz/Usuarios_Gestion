@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de Usuarios</title>
+    <link href="../lib/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- <link href="-/lib/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet"> -->
+
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <h1 class="mb-4 text-center">Gestion de Usuarios</h1>
+
+        <!-- FORMULARIO -->
+        <div class="card p-3 mb-4 shadow-sm">
+            <h5>Nuevo usuario</h5>
+            <form id="usuarioForm">
+                <input type="hidden" id="codigo"> <!-- Campo oculto para edici�n -->
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <input type="text" id="nombre" class="form-control" placeholder="Nombre" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="password" id="contrasena" class="form-control" placeholder="Contrasena" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" id="fecha" class="form-control" placeholder="Fecha Ingreso" required>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="Codigo_Area" class="form-control" required>
+                             <!-- opciones se poblarán desde JS -->
+                         </select>
+                     </div>
+                    <div class="col-md-2">
+                        <button type="submit" id="btnGuardar" class="btn btn-primary w-100">Guardar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- TABLA -->
+        <div class="card p-3 shadow-sm">
+            <table class="table table-bordered table-striped" id="tablaUsuarios">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Nombre</th>
+                        <th>Contrasena</th>
+                        <th>Fecha</th>
+                        <th>Area</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = '/api/usuarios';
+        let modoEdicion = false;
+
+        const areasMap = {
+            1: 'ALMACEN',
+            2: 'VENTAS',
+            3: 'COMPRAS'
+        };
+
+        function obtenerCodigoCategoria(u) {
+            return u.codigoArea ?? u.codigo_Area ?? u.CodigoArea ?? u.Codigo_Area ?? u.codigoCategoria ?? u.CodigoCategoria ?? null;
+        }
+
+        function formatDateOnly(value) {
+            if (!value) return '';
+            const d = new Date(value);
+            if (isNaN(d)) return value;
+            return d.toISOString().slice(0, 10); // yyyy-mm-dd
+        }
+
+        function poblarSelectAreas() {
+            const sel = document.getElementById('Codigo_Area') || document.getElementById('Codigo_Categoria') || document.getElementById('CodigoArea');
+            if (!sel) return;
+            sel.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Seleccione área';
+            placeholder.disabled = true;
+            placeholder.selected = true;
+            sel.appendChild(placeholder);
+            Object.entries(areasMap).forEach(([k, v]) => {
+                const o = document.createElement('option');
+                o.value = k;
+                o.textContent = v;
+                sel.appendChild(o);
+            });
+        }
+
+        async function cargarUsuarios() {
+            const res = await fetch(apiUrl);
+            const data = await res.json();
+
+            const tabla = document.getElementById('tablaUsuarios');
+            // asegurar estructura de tabla con thead/tbody
+            if (!tabla.querySelector('thead')) {
+                tabla.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Codigo</th><th>Nombre</th><th>Contrasena</th><th>Fecha</th><th>Area</th><th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+            }
+            const tbody = tabla.querySelector('tbody');
+            tbody.innerHTML = '';
+
+            data.forEach(u => {
+                const codigo = u.codigo ?? u.Codigo ?? '';
+                const nombre = u.nombre ?? u.Nombre ?? '';
+                const contrasena = u.contrasena ?? u.Contrasena ?? '';
+                const fechaStr = formatDateOnly(u.fecha ?? u.Fecha);
+                // preferir nombre de área devuelto por la API (u.area.Nombre), fallback a mapa o código
+                const areaNombre = (u.area && (u.area.nombre ?? u.area.Nombre)) ?? (areasMap[obtenerCodigoCategoria(u)] ?? obtenerCodigoCategoria(u) ?? '');
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${codigo}</td>
+                    <td>${nombre}</td>
+                    <td>${contrasena}</td>
+                    <td>${fechaStr}</td>
+                    <td>${areaNombre}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" onclick="editarUsuario(${codigo})">Editar</button>
+                        <button class="btn btn-sm btn-danger" onclick="eliminarUsuario(${codigo})">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('usuarioForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const nombre = document.getElementById('nombre').value.trim();
+            const contrasena = document.getElementById('contrasena').value.trim();
+            const fecha = document.getElementById('fecha').value; // yyyy-mm-dd
+            const codigoArea = parseInt(document.getElementById('Codigo_Area').value, 10);
+
+            const usuario = { nombre, contrasena, fecha, codigoArea }; // -> JSON: { "nombre","contrasena","fecha","codigoArea" }
+
+            if (!modoEdicion) {
+                await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(usuario)
+                });
+            } else {
+                const id = parseInt(document.getElementById('codigo').value, 10);
+                await fetch(`${apiUrl}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...usuario, codigo: id })
+                });
+                modoEdicion = false;
+            }
+
+            e.target.reset();
+            cargarUsuarios();
+        });
+
+        async function editarUsuario(id) {
+            const res = await fetch(`${apiUrl}/${id}`);
+            if (!res.ok) return alert('Error al obtener usuario');
+            const u = await res.json();
+
+            document.getElementById('codigo').value = u.codigo ?? u.Codigo ?? '';
+            document.getElementById('nombre').value = u.nombre ?? u.Nombre ?? '';
+            document.getElementById('contrasena').value = u.contrasena ?? u.Contrasena ?? '';
+
+            const fechaIso = u.fecha ?? u.Fecha;
+            document.getElementById('fecha').value = formatDateOnly(fechaIso);
+
+            // seleccionar opción del select por código; si la API devolvió Area, usar su Codigo si existe
+            const codigoArea = (u.area && (u.area.codigo ?? u.area.Codigo)) ?? obtenerCodigoCategoria(u);
+            const sel = document.getElementById('Codigo_Area') || document.getElementById('Codigo_Categoria') || document.getElementById('CodigoArea');
+            if (sel) sel.value = codigoArea ?? '';
+
+            document.getElementById('btnGuardar').textContent = 'Editar';
+            modoEdicion = true;
+        }
+
+        async function eliminarUsuario(codigo) {
+            if (confirm('Seguro que deseas eliminar este usuario?')) {
+                await fetch(`${apiUrl}/${codigo}`, { method: 'DELETE' });
+                cargarUsuarios();
+            }
+        }
+
+        // inicializar select y cargar datos
+        poblarSelectAreas();
+        cargarUsuarios();
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+﻿<h2>Lista de Usuarios</h2>
+<a asp-action="Create" class="btn btn-primary mb-3">Nuevo Producto</a>
+<table class="table">
+    <thead>
+        <tr><th>Nombre</th><th>Contrasena</th><th>Fecha</th><th>Area</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var u in Model)
+        {
+            <tr>
+                <td>@u.Nombre</td>
+                <td>@u.Contrasena</td>
+                <td>@u.Fecha</td>
+                <td>@u.Area?.Nombre</td>
+                <td>
+                    @if (ViewBag.EsAdmin == true)
+                    {
+                        <a asp-action="Edit" asp-route-id="@u.codigo" class="btn btn-sm btn-primary">Editar</a>
+
+                        <form asp-action="Delete" asp-route-id="@u.codigo" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este producto?');">Eliminar</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
